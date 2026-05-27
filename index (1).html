@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Securing AWS Lambda — Enterprise Grade | AI2DEV</title>
+  <meta name="description" content="The complete enterprise security playbook for AWS Lambda: VPC, API Gateway, IAM, Secrets Manager, GuardDuty and more." />
+  <meta property="og:title" content="Is Your Lambda Actually Secure? The Enterprise Checklist Most Teams Skip" />
+  <meta property="og:description" content="8 security layers every enterprise Lambda architecture needs — with architecture diagrams." />
+  <meta property="og:type" content="article" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@700;800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #070d1a;
+      --surface:  #0c1525;
+      --border:   #1a2540;
+      --text:     #c8d8f0;
+      --muted:    #4a6080;
+      --blue:     #0ea5e9;
+      --purple:   #8b5cf6;
+      --amber:    #f59e0b;
+      --red:      #ef4444;
+      --green:    #10b981;
+      --cyan:     #06b6d4;
+      --indigo:   #6366f1;
+      --orange:   #f97316;
+      --mono:     'IBM Plex Mono', monospace;
+      --sans:     'IBM Plex Sans', sans-serif;
+      --display:  'Syne', sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID NOISE BACKGROUND ── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(14,165,233,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(14,165,233,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .page { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 48px 20px 80px; }
+
+    /* ── HEADER ── */
+    header {
+      display: flex; align-items: flex-start; gap: 20px; margin-bottom: 48px;
+      animation: fadeUp .6s ease both;
+    }
+    .logo-mark {
+      width: 56px; height: 56px; border-radius: 14px; flex-shrink: 0;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 26px; box-shadow: 0 0 32px rgba(14,165,233,.25);
+    }
+    .header-text .eyebrow {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 3px;
+      color: var(--blue); text-transform: uppercase; margin-bottom: 6px;
+    }
+    h1 {
+      font-family: var(--display); font-size: clamp(22px, 4vw, 34px);
+      font-weight: 800; color: #f0f6ff; line-height: 1.15;
+    }
+    .suggested-title {
+      margin-top: 16px; padding: 12px 18px;
+      background: linear-gradient(90deg, rgba(14,165,233,.08), rgba(139,92,246,.08));
+      border: 1px solid var(--border); border-left: 3px solid var(--blue);
+      border-radius: 8px; font-family: var(--mono); font-size: 12px;
+      color: var(--muted);
+    }
+    .suggested-title span { color: var(--blue); font-weight: 600; }
+
+    /* ── SECTION HEADERS ── */
+    .section-label {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 3px;
+      color: var(--muted); text-transform: uppercase; margin-bottom: 16px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .section-label::after {
+      content: ''; flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── DIAGRAMS ── */
+    .diagram-tabs {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+    }
+    .tab-btn {
+      padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--border);
+      background: var(--surface); color: var(--muted);
+      font-family: var(--mono); font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: all .2s;
+    }
+    .tab-btn.active, .tab-btn:hover { color: #fff; }
+
+    .diagram-panel {
+      display: none; grid-template-columns: 1fr 1fr; gap: 24px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 28px;
+      animation: fadeUp .3s ease both;
+    }
+    .diagram-panel.active { display: grid; }
+
+    .diagram-desc .layer-num {
+      font-family: var(--mono); font-size: 10px; letter-spacing: 2px;
+      text-transform: uppercase; margin-bottom: 8px;
+    }
+    .diagram-desc h3 { font-family: var(--display); font-size: 22px; font-weight: 800; color: #f0f6ff; margin-bottom: 12px; }
+    .diagram-desc p  { font-size: 13.5px; line-height: 1.75; color: #7a96b8; }
+
+    .dot-nav { display: flex; gap: 8px; margin-top: 20px; }
+    .dot {
+      height: 8px; border-radius: 4px; background: var(--border);
+      cursor: pointer; transition: all .25s;
+    }
+
+    .svg-wrap {
+      background: #05090f; border-radius: 12px; padding: 16px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .svg-wrap svg { width: 100%; height: auto; }
+
+    /* ── SECURITY GRID ── */
+    .security-grid {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+      margin-top: 8px;
+    }
+    .sec-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 14px 16px;
+      border-top-width: 3px; transition: transform .2s;
+    }
+    .sec-card:hover { transform: translateY(-3px); }
+    .sec-card .icon { font-size: 18px; margin-bottom: 8px; }
+    .sec-card .label { font-family: var(--mono); font-size: 11px; font-weight: 600; margin-bottom: 8px; }
+    .sec-card .item { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+
+    /* ── POST PREVIEW ── */
+    .post-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+      animation: fadeUp .5s .2s ease both; opacity: 0; animation-fill-mode: both;
+    }
+    .post-header {
+      background: #0f1e35; padding: 14px 22px;
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .avatar {
+      width: 40px; height: 40px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--blue), var(--indigo));
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--display); font-weight: 800; color: #fff; font-size: 18px;
+    }
+    .poster-name { font-weight: 600; font-size: 14px; color: #f0f6ff; }
+    .poster-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+    .post-body {
+      padding: 22px 26px; font-size: 13.5px; line-height: 1.8;
+      color: #a8c0d8; white-space: pre-wrap; max-height: 420px;
+      overflow-y: auto; font-family: var(--sans);
+    }
+    .post-body::-webkit-scrollbar { width: 4px; }
+    .post-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .post-footer {
+      padding: 14px 26px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    }
+    .post-actions { font-size: 12px; color: var(--muted); }
+
+    .copy-btn {
+      padding: 10px 22px; border-radius: 8px; border: none;
+      background: var(--blue); color: #fff; font-family: var(--mono);
+      font-size: 12px; font-weight: 600; cursor: pointer; transition: all .2s;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .copy-btn:hover { background: #38bdf8; }
+    .copy-btn.copied { background: var(--green); }
+
+    /* ── FOOTER ── */
+    footer {
+      margin-top: 60px; text-align: center;
+      font-family: var(--mono); font-size: 11px; color: #1e3050;
+      letter-spacing: 2px; text-transform: uppercase;
+    }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(18px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-1 { animation: fadeUp .6s .1s ease both; }
+    .fade-2 { animation: fadeUp .6s .2s ease both; }
+    .fade-3 { animation: fadeUp .6s .3s ease both; }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      .diagram-panel { grid-template-columns: 1fr; }
+      .security-grid { grid-template-columns: repeat(2, 1fr); }
+      h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <header>
+    <div class="logo-mark">🔐</div>
+    <div class="header-text">
+      <div class="eyebrow">AI2DEV · Enterprise AWS Security</div>
+      <h1>Securing AWS Lambda<br/>at Enterprise Grade</h1>
+      <div class="suggested-title">
+        📌 Suggested Title: <span>"Is Your Lambda Actually Secure? The Enterprise Checklist Most Teams Skip"</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ARCHITECTURE DIAGRAMS -->
+  <div class="fade-1">
+    <div class="section-label">Architecture Diagrams</div>
+
+    <div class="diagram-tabs" id="tabs"></div>
+    <div id="panels"></div>
+  </div>
+
+  <!-- SECURITY LAYERS -->
+  <div class="fade-2" style="margin-top:48px;">
+    <div class="section-label">Security Layers at a Glance</div>
+    <div class="security-grid" id="secGrid"></div>
+  </div>
+
+  <!-- POST PREVIEW -->
+  <div class="fade-3" style="margin-top:48px;">
+    <div class="section-label">Post Preview</div>
+    <div class="post-card">
+      <div class="post-header">
+        <div class="avatar">D</div>
+        <div>
+          <div class="poster-name">Dharm · AI2DEV</div>
+          <div class="poster-meta">Founder · Just now · 🌐</div>
+        </div>
+      </div>
+      <div class="post-body" id="postBody"></div>
+      <div class="post-footer">
+        <div class="post-actions">👍 Like · 💬 Comment · 🔁 Repost · 📤 Send</div>
+        <button class="copy-btn" id="copyBtn" onclick="copyPost()">📋 Copy Post</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>AI2DEV · ai2dev.com · Enterprise Lambda Security</footer>
+</div>
+
+<script>
+/* ─── DATA ─────────────────────────────────────────────────────────── */
+const POST_TEXT = `🔐 Securing AWS Lambda at Enterprise Grade — The Complete Playbook
+
+Most teams deploy Lambda functions fast. Very few secure them properly.
+
+After working with regulated enterprises across fintech, banking, and insurance, here's the full security stack your Lambda architecture needs in 2025.
+
+━━━━━━━━━━━━━━━━━━━━━━
+🏗️ 1. VPC ISOLATION
+━━━━━━━━━━━━━━━━━━━━━━
+
+Don't leave your Lambdas floating in the public AWS network.
+
+• Deploy inside a private VPC subnet — no internet access by default
+• Use VPC Endpoints (PrivateLink) for AWS services (S3, DynamoDB, Secrets Manager) — traffic never leaves AWS backbone
+• Separate subnets per environment (dev / staging / prod)
+• Restrict egress with NAT Gateway only when external access is needed
+
+⚠️ Cold start penalty is real but manageable with provisioned concurrency. Security > speed.
+
+━━━━━━━━━━━━━━━━━━━━━━
+🚪 2. API GATEWAY HARDENING
+━━━━━━━━━━━━━━━━━━━━━━
+
+API Gateway is your front door. Treat it like one.
+
+• JWT / Cognito Authorizers — validate tokens before Lambda is even invoked
+• Resource Policies — whitelist specific IPs or VPCs at the API level
+• WAF Integration — block SQLi, XSS, malicious bots at the edge
+• Throttling & Usage Plans — rate limit per API key to prevent abuse
+• Private API Gateway — accessible only from within your VPC via VPC Endpoint
+• Mutual TLS (mTLS) — client certificate validation for B2B integrations
+
+━━━━━━━━━━━━━━━━━━━━━━
+🎭 3. IAM — LEAST PRIVILEGE, ALWAYS
+━━━━━━━━━━━━━━━━━━━━━━
+
+Every Lambda gets its own execution role. No shared roles. Ever.
+
+• Scope permissions to exact ARNs, not wildcard resources
+• Use IAM Conditions (aws:SourceVpc, aws:SourceIp) to restrict invocation context
+• Separate roles for read vs. write operations
+• Deny explicit permissions you don't need (DenyAll baseline + allow specific)
+• Audit with IAM Access Analyzer quarterly
+
+━━━━━━━━━━━━━━━━━━━━━━
+🔑 4. SECRETS MANAGEMENT
+━━━━━━━━━━━━━━━━━━━━━━
+
+Never hardcode credentials. Never use environment variables for secrets in prod.
+
+• AWS Secrets Manager — automatic rotation, versioning, fine-grained access
+• AWS Parameter Store (SecureString) — for config that doesn't rotate often
+• Fetch at runtime, not at deploy time
+• Cache secrets in-memory within Lambda execution context (not globally)
+
+━━━━━━━━━━━━━━━━━━━━━━
+🔍 5. OBSERVABILITY & THREAT DETECTION
+━━━━━━━━━━━━━━━━━━━━━━
+
+You can't secure what you can't see.
+
+• CloudTrail — every Lambda invocation, role assumption, and API call logged
+• GuardDuty for Lambda — ML-based anomaly detection on execution behaviour
+• CloudWatch Anomaly Detection — flag unusual invocation spikes
+• AWS Config Rules — enforce Lambda config standards (no public URLs, VPC required)
+• EventBridge → Security Hub → SIEM pipeline for enterprise SOC integration
+
+━━━━━━━━━━━━━━━━━━━━━━
+📦 6. CODE & SUPPLY CHAIN SECURITY
+━━━━━━━━━━━━━━━━━━━━━━
+
+The function code itself is an attack surface.
+
+• Amazon Inspector — scan Lambda packages for CVEs automatically
+• Dependency pinning — lock all package versions, verify checksums
+• Code Signing — enforce signed deployment packages only (Lambda code signing config)
+• No Lambda Function URLs with public access — use API Gateway instead
+• Container image Lambdas → ECR image scanning on push
+
+━━━━━━━━━━━━━━━━━━━━━━
+🌐 7. NETWORK CONTROLS BEYOND VPC
+━━━━━━━━━━━━━━━━━━━━━━
+
+• Security Groups on Lambda — restrict outbound ports and destination IPs
+• NACLs on subnets — subnet-level stateless firewall rules
+• AWS Network Firewall — deep packet inspection for egress traffic
+• Transit Gateway — centralise inter-VPC and on-prem connectivity with routing controls
+
+━━━━━━━━━━━━━━━━━━━━━━
+⚙️ 8. RUNTIME HARDENING
+━━━━━━━━━━━━━━━━━━━━━━
+
+• Set reserved concurrency limits — prevent runaway costs from abuse
+• Enforce maximum timeout values — don't leave doors open indefinitely
+• Disable Lambda Function URLs unless explicitly needed
+• Use Lambda Layers for shared dependencies — centralise patching
+• Environment variable encryption with customer-managed KMS keys
+
+━━━━━━━━━━━━━━━━━━━━━━
+🏆 THE ENTERPRISE CHECKLIST
+━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Lambda inside private VPC subnet
+✅ VPC Endpoints for all AWS service calls
+✅ API Gateway with WAF + Cognito/JWT auth
+✅ Per-function IAM roles with least privilege
+✅ Secrets Manager (zero env var secrets in prod)
+✅ CloudTrail + GuardDuty for Lambda enabled
+✅ Amazon Inspector scanning on all functions
+✅ Code signing enforced in prod
+✅ KMS encryption on env variables
+✅ Reserved concurrency + timeout configured
+✅ AWS Config rules for Lambda compliance
+
+━━━━━━━━━━━━━━━━━━━━━━
+
+At AI2DEV, our platform generates Lambda functions with enterprise security patterns baked in — VPC config, IAM roles, Secrets Manager integration — all from a single prompt, delivered via GitOps pipelines directly to your environment.
+
+No copy-paste. No misconfig. Production-ready from day one.
+
+👇 Which of these does your current Lambda setup still need? Drop it in the comments.
+
+#AWSLambda #ServerlessSecurity #EnterpriseCloud #CloudSecurity #AWS #Fintech #AI2DEV #DevSecOps #Serverless #CloudArchitecture`;
+
+const SECTIONS = [
+  {
+    id: "vpc", icon: "🏗️", title: "VPC Isolation", color: "#0ea5e9",
+    desc: "Lambda lives <em>inside</em> the Private Subnet, which is nested inside the VPC. AWS services are reached via VPC Endpoints (PrivateLink) — traffic never touches the public internet. NAT Gateway is the only optional egress path.",
+    customSVG: true
+  },
+  {
+    id: "apigw", icon: "🚪", title: "API Gateway", color: "#8b5cf6",
+    desc: "WAF blocks threats at edge. Cognito JWT validation fires before Lambda is invoked. Rate limiting per API key prevents abuse.",
+    nodes: [
+      { label: "Client",            x: 130, y: 36,  type: "external" },
+      { label: "AWS WAF",           x: 130, y: 110, type: "waf"      },
+      { label: "API Gateway",       x: 130, y: 190, type: "gateway"  },
+      { label: "Cognito Auth",      x: 240, y: 110, type: "auth"     },
+      { label: "Usage Plans",       x: 240, y: 190, type: "control"  },
+      { label: "Lambda",            x: 130, y: 270, type: "lambda"   },
+    ],
+    edges: [[0,1],[1,2],[3,2],[2,4],[2,5]]
+  },
+  {
+    id: "iam", icon: "🎭", title: "IAM Least Privilege", color: "#f59e0b",
+    desc: "Every Lambda gets its own scoped execution role. No wildcards. IAM Access Analyzer audits all permissions continuously.",
+    nodes: [
+      { label: "Lambda A\n(Read)",  x: 60,  y: 60,  type: "lambda"  },
+      { label: "Lambda B\n(Write)", x: 200, y: 60,  type: "lambda"  },
+      { label: "S3 Read-Only",      x: 60,  y: 210, type: "service" },
+      { label: "DynamoDB Write",    x: 200, y: 210, type: "service" },
+      { label: "Access Analyzer",   x: 130, y: 320, type: "control" },
+    ],
+    edges: [[0,2],[1,3],[0,4],[1,4]]
+  },
+  {
+    id: "obs", icon: "🔍", title: "Threat Detection", color: "#10b981",
+    desc: "Every invocation is logged. GuardDuty ML detects anomalous behaviour. Security Hub aggregates findings into your enterprise SOC.",
+    nodes: [
+      { label: "Lambda",        x: 130, y: 36,  type: "lambda"  },
+      { label: "CloudTrail",    x: 60,  y: 130, type: "control" },
+      { label: "GuardDuty",     x: 200, y: 130, type: "waf"     },
+      { label: "Security Hub",  x: 130, y: 230, type: "gateway" },
+      { label: "SIEM / SOC",    x: 130, y: 320, type: "external"},
+    ],
+    edges: [[0,1],[0,2],[1,3],[2,3],[3,4]]
+  }
+];
+
+const SEC_LAYERS = [
+  { icon:"🏗️", label:"VPC Isolation",   color:"#0ea5e9", items:["Private Subnets","VPC Endpoints","NACLs"] },
+  { icon:"🚪", label:"API Gateway",      color:"#8b5cf6", items:["WAF","JWT Auth","mTLS","Throttle"] },
+  { icon:"🎭", label:"IAM",              color:"#f59e0b", items:["Per-fn Roles","Least Privilege","Conditions"] },
+  { icon:"🔑", label:"Secrets",          color:"#ef4444", items:["Secrets Manager","KMS Encryption","No Env Secrets"] },
+  { icon:"🔍", label:"Observability",    color:"#10b981", items:["CloudTrail","GuardDuty","Security Hub"] },
+  { icon:"📦", label:"Supply Chain",     color:"#06b6d4", items:["Inspector","Code Signing","Dep Pinning"] },
+  { icon:"🌐", label:"Network",          color:"#6366f1", items:["Security Groups","Network Firewall","Transit GW"] },
+  { icon:"⚙️", label:"Runtime",         color:"#f97316", items:["Concurrency Limits","Timeout Policy","Layer Patching"] },
+];
+
+/* ─── NODE COLORS ─────────────────────────────────────────────────── */
+const NODE_COLORS = {
+  external: "#64748b", gateway: null, subnet: "#334155",
+  lambda: "#f97316",   endpoint: "#06b6d4", service: "#6366f1",
+  waf: "#ef4444", auth: "#8b5cf6", control: "#14b8a6",
+};
+
+/* ─── VPC CONTAINMENT SVG ──────────────────────────────────────────── */
+function buildVPCSVG() {
+  return `<svg viewBox="0 0 300 420" xmlns="http://www.w3.org/2000/svg" font-family="'IBM Plex Mono',monospace">
+  <defs>
+    <marker id="arr-vpc" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#0ea5e9" fill-opacity=".7"/>
+    </marker>
+    <marker id="arr-vpc-ep" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#06b6d4" fill-opacity=".7"/>
+    </marker>
+  </defs>
+
+  <!-- Internet (outside everything) -->
+  <rect x="90" y="8" width="120" height="34" rx="7"
+    fill="#64748b" fill-opacity=".12" stroke="#64748b" stroke-width="1.5"/>
+  <text x="150" y="29" text-anchor="middle" font-size="11" fill="#94a3b8" font-weight="600">Internet</text>
+
+  <!-- Arrow: Internet → NAT Gateway -->
+  <line x1="150" y1="42" x2="150" y2="64"
+    stroke="#0ea5e9" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="4 3"
+    marker-end="url(#arr-vpc)"/>
+
+  <!-- VPC outer boundary -->
+  <rect x="10" y="68" width="280" height="338" rx="14"
+    fill="#0ea5e9" fill-opacity=".04" stroke="#0ea5e9" stroke-width="1.5" stroke-dasharray="6 3"/>
+  <text x="22" y="86" font-size="9" fill="#0ea5e9" font-weight="600" letter-spacing="2">VPC</text>
+
+  <!-- NAT Gateway (inside VPC, public subnet conceptually) -->
+  <rect x="80" y="92" width="140" height="34" rx="7"
+    fill="#0ea5e9" fill-opacity=".15" stroke="#0ea5e9" stroke-width="1.5"/>
+  <text x="150" y="113" text-anchor="middle" font-size="11" fill="#0ea5e9" font-weight="600">NAT Gateway</text>
+  <text x="150" y="125" text-anchor="middle" font-size="8" fill="#0ea5e9" fill-opacity=".6">(optional egress)</text>
+
+  <!-- Arrow: NAT → Private Subnet -->
+  <line x1="150" y1="128" x2="150" y2="150"
+    stroke="#0ea5e9" stroke-opacity=".4" stroke-width="1.5" stroke-dasharray="4 3"
+    marker-end="url(#arr-vpc)"/>
+
+  <!-- Private Subnet boundary (nested inside VPC) -->
+  <rect x="24" y="154" width="252" height="200" rx="10"
+    fill="#0ea5e9" fill-opacity=".07" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="5 3"/>
+  <text x="36" y="170" font-size="9" fill="#38bdf8" font-weight="600" letter-spacing="2">PRIVATE SUBNET</text>
+
+  <!-- Lambda (nested inside Private Subnet) -->
+  <rect x="40" y="180" width="130" height="80" rx="9"
+    fill="#f97316" fill-opacity=".13" stroke="#f97316" stroke-width="2"/>
+  <text x="105" y="212" text-anchor="middle" font-size="13" fill="#f97316" font-weight="600">λ Lambda</text>
+  <text x="105" y="228" text-anchor="middle" font-size="9" fill="#f97316" fill-opacity=".7">Function</text>
+  <text x="105" y="244" text-anchor="middle" font-size="8" fill="#f97316" fill-opacity=".5">Security Group attached</text>
+
+  <!-- VPC Endpoint (also inside Private Subnet) -->
+  <rect x="188" y="180" width="76" height="80" rx="9"
+    fill="#06b6d4" fill-opacity=".13" stroke="#06b6d4" stroke-width="1.5"/>
+  <text x="226" y="212" text-anchor="middle" font-size="9" fill="#06b6d4" font-weight="600">VPC</text>
+  <text x="226" y="225" text-anchor="middle" font-size="9" fill="#06b6d4" font-weight="600">Endpoint</text>
+  <text x="226" y="240" text-anchor="middle" font-size="8" fill="#06b6d4" fill-opacity=".6">PrivateLink</text>
+
+  <!-- Arrow: Lambda → VPC Endpoint -->
+  <line x1="170" y1="220" x2="186" y2="220"
+    stroke="#06b6d4" stroke-opacity=".6" stroke-width="1.5" stroke-dasharray="4 3"
+    marker-end="url(#arr-vpc-ep)"/>
+
+  <!-- Arrow: VPC Endpoint → AWS Services (below subnet, still in VPC) -->
+  <line x1="226" y1="260" x2="226" y2="306"
+    stroke="#06b6d4" stroke-opacity=".5" stroke-width="1.5" stroke-dasharray="4 3"
+    marker-end="url(#arr-vpc-ep)"/>
+
+  <!-- AWS Services box (inside VPC, below subnet) -->
+  <rect x="150" y="310" width="124" height="70" rx="9"
+    fill="#6366f1" fill-opacity=".13" stroke="#6366f1" stroke-width="1.5"/>
+  <text x="212" y="334" text-anchor="middle" font-size="10" fill="#6366f1" font-weight="600">AWS Services</text>
+  <text x="212" y="350" text-anchor="middle" font-size="9" fill="#6366f1" fill-opacity=".8">S3 · DynamoDB</text>
+  <text x="212" y="364" text-anchor="middle" font-size="9" fill="#6366f1" fill-opacity=".8">Secrets Manager</text>
+
+  <!-- "No internet" badge -->
+  <rect x="30" y="315" width="108" height="28" rx="6"
+    fill="#ef4444" fill-opacity=".1" stroke="#ef4444" stroke-width="1" stroke-dasharray="3 2"/>
+  <text x="84" y="333" text-anchor="middle" font-size="9" fill="#ef4444" font-weight="600">🚫 No Public Internet</text>
+
+</svg>`;
+}
+
+/* ─── SVG BUILDER ──────────────────────────────────────────────────── */
+function buildSVG(sec) {
+  if (sec.customSVG) return buildVPCSVG();
+
+  const { nodes, edges, color, id } = sec;
+  const arrowId = `arr-${id}`;
+
+  let svg = `<svg viewBox="0 0 280 390" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <marker id="${arrowId}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="${color}" fill-opacity=".6"/>
+    </marker>
+  </defs>`;
+
+  // edges
+  for (const [fi, ti] of edges) {
+    const a = nodes[fi], b = nodes[ti];
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+    const ux = dx/len, uy = dy/len;
+    const x1 = a.x + ux*52, y1 = a.y + uy*24;
+    const x2 = b.x - ux*52, y2 = b.y - uy*24;
+    svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"
+      stroke="${color}" stroke-opacity=".4" stroke-width="1.5"
+      stroke-dasharray="4 3" marker-end="url(#${arrowId})"/>`;
+  }
+
+  // nodes
+  for (const n of nodes) {
+    const bg = NODE_COLORS[n.type] === null ? color : (NODE_COLORS[n.type] || "#334155");
+    const lines = n.label.split("\n");
+    const h = lines.length > 1 ? 52 : 40;
+    svg += `<g transform="translate(${n.x},${n.y})">
+      <rect x="-52" y="-${h/2}" width="104" height="${h}" rx="8"
+        fill="${bg}" fill-opacity=".12" stroke="${bg}" stroke-width="1.5"/>`;
+    if (lines.length === 1) {
+      svg += `<text text-anchor="middle" y="4" font-size="10" fill="${bg}"
+        font-weight="600" font-family="'IBM Plex Mono',monospace">${lines[0]}</text>`;
+    } else {
+      svg += `<text text-anchor="middle" y="-6" font-size="10" fill="${bg}"
+        font-weight="600" font-family="'IBM Plex Mono',monospace">${lines[0]}</text>`;
+      svg += `<text text-anchor="middle" y="10" font-size="10" fill="${bg}"
+        font-weight="600" font-family="'IBM Plex Mono',monospace">${lines[1]}</text>`;
+    }
+    svg += `</g>`;
+  }
+
+  svg += `</svg>`;
+  return svg;
+}
+
+/* ─── RENDER TABS & PANELS ─────────────────────────────────────────── */
+let activeIdx = 0;
+
+function renderDiagrams() {
+  const tabsEl   = document.getElementById("tabs");
+  const panelsEl = document.getElementById("panels");
+
+  SECTIONS.forEach((sec, i) => {
+    // tab button
+    const btn = document.createElement("button");
+    btn.className = "tab-btn" + (i === 0 ? " active" : "");
+    btn.textContent = `${sec.icon} ${sec.title}`;
+    btn.style.borderColor   = i === 0 ? sec.color : "";
+    btn.style.color         = i === 0 ? sec.color : "";
+    btn.style.background    = i === 0 ? sec.color + "18" : "";
+    btn.onclick = () => switchTab(i);
+    tabsEl.appendChild(btn);
+
+    // panel
+    const panel = document.createElement("div");
+    panel.className = "diagram-panel" + (i === 0 ? " active" : "");
+    panel.id = `panel-${i}`;
+    panel.style.borderColor = sec.color + "30";
+
+    // dots html
+    const dotsHtml = SECTIONS.map((_, di) =>
+      `<div class="dot" id="dot-${i}-${di}" onclick="switchTab(${di})"
+        style="width:${di===i?28:8}px;background:${di===i?sec.color:"var(--border)"}"></div>`
+    ).join("");
+
+    panel.innerHTML = `
+      <div class="diagram-desc">
+        <div class="layer-num" style="color:${sec.color}">${sec.icon} Layer ${i+1} / ${SECTIONS.length}</div>
+        <h3>${sec.title}</h3>
+        <p>${sec.desc}</p>
+        <div class="dot-nav">${dotsHtml}</div>
+      </div>
+      <div class="svg-wrap" style="border:1px solid ${sec.color}20">
+        ${buildSVG(sec)}
+      </div>`;
+    panelsEl.appendChild(panel);
+  });
+}
+
+function switchTab(idx) {
+  const prev = SECTIONS[activeIdx];
+  const next = SECTIONS[idx];
+
+  // tabs
+  document.querySelectorAll(".tab-btn").forEach((btn, i) => {
+    const s = SECTIONS[i];
+    btn.classList.toggle("active", i === idx);
+    btn.style.borderColor = i === idx ? s.color : "var(--border)";
+    btn.style.color       = i === idx ? s.color : "var(--muted)";
+    btn.style.background  = i === idx ? s.color + "18" : "var(--surface)";
+  });
+
+  // panels
+  document.querySelectorAll(".diagram-panel").forEach((p, i) => {
+    p.classList.toggle("active", i === idx);
+  });
+
+  activeIdx = idx;
+}
+
+/* ─── SECURITY GRID ─────────────────────────────────────────────────── */
+function renderSecGrid() {
+  const grid = document.getElementById("secGrid");
+  SEC_LAYERS.forEach(s => {
+    const card = document.createElement("div");
+    card.className = "sec-card";
+    card.style.borderTopColor = s.color;
+    card.innerHTML = `
+      <div class="icon">${s.icon}</div>
+      <div class="label" style="color:${s.color}">${s.label}</div>
+      ${s.items.map(it => `<div class="item">· ${it}</div>`).join("")}`;
+    grid.appendChild(card);
+  });
+}
+
+/* ─── POST TEXT ─────────────────────────────────────────────────────── */
+function renderPost() {
+  document.getElementById("postBody").textContent = POST_TEXT;
+}
+
+/* ─── COPY ──────────────────────────────────────────────────────────── */
+function copyPost() {
+  navigator.clipboard.writeText(POST_TEXT).then(() => {
+    const btn = document.getElementById("copyBtn");
+    btn.textContent = "✓ Copied!";
+    btn.classList.add("copied");
+    setTimeout(() => {
+      btn.textContent = "📋 Copy Post";
+      btn.classList.remove("copied");
+    }, 2000);
+  });
+}
+
+/* ─── INIT ──────────────────────────────────────────────────────────── */
+renderDiagrams();
+renderSecGrid();
+renderPost();
+</script>
+</body>
+</html>
